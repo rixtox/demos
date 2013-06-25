@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<title>HTML5 Bezier Curve</title>
+	<style>
+		* {
+			margin: 0;
+			padding: 0;
+		}
+		body, html {
+			height:100%;
+			background-color: #000;
+		}
+		#c {
+			position: absolute;
+			top: 0;
+		}
+	</style>
+</head>
+<body>
+	<canvas id="c"></canvas>
+<script>
+var pointList = [
+	new Point(document.width * 0.1, document.height * 0.1),
+	new Point(document.width * 0.2, document.height * 0.8),
+	new Point(document.width * 0.8, document.height * 0.2),
+	new Point(document.width * 0.9, document.height * 0.9)
+];
+
+var cvs = document.getElementById('c');
+	ctx = cvs.getContext('2d'),
+	dotRadius = 5,
+	traceTolerance = 10,
+	tracePoint = false;
+
+window.onresize = function(e){
+	cvs.width = document.width;
+	cvs.height = document.height;
+	update(pointList)
+};
+
+window.onresize();
+
+ctx.lineCap = 'round';
+ctx.lineWidth = 2;
+ctx.shadowOffsetX = 0;
+ctx.shadowOffsetY = 0;
+ctx.shadowBlur    = 10;
+ctx.shadowColor   = 'rgba(0, 0, 255, 0.95)';
+
+var debug = document.getElementById('debug');
+
+function drawDots(pointList, color, radius, 
+				 reverseHorizontally,
+				 reverseVertically) {
+	var processPoint = function(point) {
+		return new Point(reverseHorizontally ? 
+			cvs.width - point.x : 
+			point.x, 
+			reverseVertically ? 
+			cvs.height - point.y : 
+			point.y);};
+	ctx.save();
+	reverseHorizontally = 
+		typeof reverseHorizontally === 'undefined' ? 
+		false : reverseHorizontally;
+	reverseVertically = 
+		typeof reverseVertically === 'undefined' ? 
+		false : reverseVertically;
+	if(typeof color !== 'undefined')
+		ctx.fillStyle = color;
+	ctx.lineWidth = 0;
+	for(var i = 0; i < pointList.length; ++i) {
+		ctx.beginPath();
+		ctx.arc(processPoint(pointList[i]).x, 
+			processPoint(pointList[i]).y, 
+			radius, 0, 2*Math.PI);
+		ctx.fill();
+	}
+	ctx.restore();
+}
+
+function drawLine(pointList, color, width, 
+				  reverseHorizontally,
+				  reverseVertically,
+				  dashed) {
+	var processPoint = function(point) {
+		return new Point(reverseHorizontally ? 
+			cvs.width - point.x : point.x, 
+			reverseVertically ? 
+			cvs.height - point.y : 
+			point.y);
+	};
+	ctx.save();
+	reverseHorizontally = 
+		typeof reverseHorizontally === 'undefined' ? 
+		false : reverseHorizontally;
+	reverseVertically = 
+		typeof reverseVertically === 'undefined' ? 
+		false : reverseVertically;
+	if(typeof color !== 'undefined')
+		ctx.strokeStyle = color;
+	if(typeof width !== 'undefined')
+		ctx.lineWidth = width;
+	ctx.setLineDash(typeof dashed === 'undefined' ? [] : dashed);
+	ctx.beginPath();
+	ctx.moveTo(processPoint(pointList[0]).x, processPoint(pointList[0]).y);
+	for(var i = 1; i < pointList.length; ++i) {
+		ctx.lineTo(processPoint(pointList[i]).x, processPoint(pointList[i]).y);
+	}
+	ctx.stroke();
+	ctx.restore();
+}
+
+function binom(n, k) {
+	var coeff = 1;
+	for (var i = n-k+1; i <= n; i++) coeff *= i;
+	for (var i = 1;		i <= k; i++) coeff /= i;
+	return coeff;
+}
+
+function bernsteinCoefficient(i, n, t) {
+	return binom(n, i) * Math.pow(t, i) * Math.pow(1 - t, n - i);
+}
+
+function bezierPoint (pointList, t) {
+	var newPoint = new Point(),
+		n = pointList.length - 1;
+	for(var i = 0; i <= n; ++i) {
+		var coeff = bernsteinCoefficient(i, n, t);
+		newPoint.x += pointList[i].x * coeff;
+		newPoint.y += pointList[i].y * coeff;
+	}
+	return newPoint;
+}
+
+function bezierCurve (pointList, pointCount) {
+	var newPointList = [];
+	for(var i = 0; i < pointCount; ++i)
+		newPointList.push(bezierPoint(pointList, i / (pointCount - 1)));
+	return newPointList;
+}
+
+function Point(x, y) {
+	return {x: typeof x === 'undefined' ? null : x,
+			y: typeof y === 'undefined' ? null : y};
+}
+
+function Domain(min, max) {
+	this.in = function(value, canEqual) {
+		canEqual = typeof canEqual === 'undefined' ? true : canEqual;
+		return canEqual
+			?(value >= this.min && value <= this.max)
+			:(value > this.min && value < this.max);
+	};
+	this.min = typeof min === 'undefined' ? null : min;
+	this.max = typeof max === 'undefined' ? null : max;
+	if(typeof this.min !== 'undefined' && typeof this.max !== 'undefined') {
+		if(this.min > this.max) {
+			var tmp = this.min;
+			this.min = this.max;
+			this.max = tmp;
+		}
+	}
+}
+
+function update(pointList, mousePoint) {
+	var curvePointList = bezierCurve(pointList, 500);
+	ctx.clearRect(0, 0, cvs.width, cvs.height);
+	drawLine(pointList, 'rgba(255, 255, 255, .5)', 2, false, true, [10, 5]);
+	drawDots(pointList, '#ccc', dotRadius, false, true);
+	drawLine(curvePointList, 'rgba(250,150,250,.8)', 3, false, true);
+	if(typeof mousePoint !== 'undefined') {
+		tracePoint = getPointOnLine(pointList, mousePoint, traceTolerance);
+		if(tracePoint)
+			drawDots([tracePoint], 'rgba(0, 255, 255, .7)', dotRadius, false, true);
+	}
+}
+
+function getPointOnLine(pointList, point, tolerance) {
+	var intersections = [],
+		distances = [],
+		minIndex = -1;
+	for(var i = 0; i < pointList.length - 1; ++i) {
+		var domainX = new Domain(pointList[i].x, pointList[i+1].x),
+			domainY = new Domain(pointList[i].y, pointList[i+1].y);
+
+		if (!(domainX.in(point.x) || domainY.in(point.y))) {
+			intersections.push(null);
+			distances.push(1/0);
+			continue;
+		}
+		var x0 = point.x,
+			y0 = point.y,
+			x1 = pointList[i].x,
+			y1 = pointList[i].y,
+			x2 = pointList[i+1].x,
+			y2 = pointList[i+1].y,
+
+			a1 = y1 - y2,
+			b1 = x2 - x1,
+			c1 = x1 * y2 - x2 * y1,
+			a2 = - b1,
+			b2 = a1,
+			c2 = b1 * x0 - a1 * y0,
+			intersection = new Point((b1 * c2 - b2 * c1) / (a1 * b2 - a2 * b1),
+									 (a2 * c1 - a1 * c2) / (a1 * b2 - a2 * b1)),
+			distance = Math.sqrt(Math.pow(x0 - intersection.x, 2) + Math.pow(y0 - intersection.y, 2));
+
+			intersection.index = i + 1;
+		intersections.push(intersection);
+		distances.push(distance);
+	}
+	for(var i in distances) {
+		if(distances[i] <= tolerance) {
+			if(minIndex >= 0) {
+				if(distances[i] < distances[minIndex])
+					minIndex = i;
+			} else {
+				minIndex = i;
+			}
+		}
+	}
+	return minIndex >= 0 ? intersections[minIndex] : false;
+}
+
+addPoint = function(point, index) {
+	index = typeof index === 'undefined' ? pointList.length : parseInt(index);
+	for(var i = pointList.length; i > index; --i) {
+		pointList[i] = pointList[i-1];
+	}
+	pointList[index] = point;
+};
+
+removePoint = function(index) {
+	if(pointList.length < 3)
+		return;
+	index = typeof index === 'undefined' ? pointList.length - 1 : parseInt(index);
+	var retval = pointList[index];
+	for(var i = index; i < pointList.length - 1; ++i) {
+		pointList[i] = pointList[i+1];
+	}
+	pointList.pop();
+	return retval;
+};
+
+clickingPointIndex = -1;
+hiddenPointIndex = -1;
+hiddenPoint = null;
+
+cvs.addEventListener('mousedown', function(e) {
+	for(var i in pointList) {
+		if( (e.offsetX >= pointList[i].x - dotRadius) &&
+			(e.offsetX <= pointList[i].x + dotRadius) &&
+			(cvs.height - e.offsetY >= pointList[i].y - dotRadius) &&
+			(cvs.height - e.offsetY <= pointList[i].y + dotRadius) ) {
+			clickingPointIndex = i;
+			return;
+		}
+	}
+	if(e.which === 1) {
+		if(tracePoint)
+			addPoint(tracePoint, tracePoint.index);
+		clickingPointIndex = tracePoint.index;
+	}
+}, false);
+
+cvs.addEventListener('mousemove', function(e) {
+	var mousePoint = new Point(e.offsetX, cvs.height - e.offsetY);
+	if(clickingPointIndex >= 0) {
+		if(hiddenPointIndex >= 0) {
+			addPoint(hiddenPoint, hiddenPointIndex);
+			hiddenPointIndex = -1;
+		}
+		pointList[clickingPointIndex] = mousePoint;
+	}
+	update(pointList, mousePoint);
+}, false);
+
+cvs.addEventListener('mouseout', function(e) {
+	if(e.which === 1 && clickingPointIndex >= 0 && hiddenPointIndex < 0) {
+		hiddenPointIndex = clickingPointIndex;
+		hiddenPoint = removePoint(clickingPointIndex);
+		update(pointList, new Point(e.offsetX, cvs.height - e.offsetY));
+	}
+}, false);
+
+cvs.oncontextmenu = function(e) {
+	return false;
+};
+
+document.onmouseup = function(e) {
+	if(e.which === 3 && clickingPointIndex >= 0) {
+		removePoint(clickingPointIndex);
+	}
+	clickingPointIndex = -1;
+	hiddenPointIndex = -1;
+	update(pointList, new Point(e.offsetX, cvs.height - e.offsetY));
+};
+
+update(pointList);
+</script>
+</body>
+</html>
