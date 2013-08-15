@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Matrix</title>
+  <script src="../lib/webfont.js"></script>
+  <style>
+  body {
+    margin: 0;
+    overflow: hidden;
+  }
+  </style>
+</head>
+<body>
+  <canvas id="c"></canvas>
+  <script>
+    var s = window.screen;
+    var width = c.width = s.width;
+    var height = c.height = s.height;
+    var f_s = 25;
+    var v_c = Math.floor(height / f_s) + 1;
+    var h_c = Math.floor(width / f_s) + 1;
+
+    (function() {
+      var requestAnimationFrame = window.requestAnimationFrame 
+        || window.mozRequestAnimationFrame 
+        || window.webkitRequestAnimationFrame 
+        || window.msRequestAnimationFrame;
+      window.requestAnimationFrame = requestAnimationFrame;
+    })();
+
+    var ctx = c.getContext('2d');
+    ctx.font = 'normal ' + f_s + 'px/2 Matrix';
+
+    var letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789$+-*/=%"\'#&_(),.;:?!\\|{}<>[]^~'.split('');
+    var random_letters = [];
+    var y_pos = [];
+
+    var random_y = function() {
+      return Math.floor(Math.random() * (v_c * 1.6 + 1));
+    };
+
+    for(var i = 0; i < h_c; i++)
+      y_pos.push(random_y());
+
+    var random_letter = function() {
+      return letters[
+        Math.floor(
+          Math.random() * letters.length
+      )]
+    }
+
+    for(var i = 0; i < v_c * 0.6; i++)
+      random_letters.push(random_letter());
+
+    var draw_column = function(x, y, arr) {
+      var fade_step = 1 / arr.length;
+      ctx.shadowColor = '#FFF';
+      ctx.fillStyle = '#FFF';
+      ctx.shadowBlur = 15;
+      ctx.fillText(arr[Math.floor(
+        Math.random() * arr.length)], x, y);
+      ctx.shadowBlur = 10;
+      ctx.shadowColor = '#0F0';
+      for(var i = 1; i < arr.length; i++) {
+        ctx.fillStyle = 'rgba(0,255,0,'+(1 - (i - 1) * fade_step)+')';
+        y -= f_s;
+        ctx.fillText(arr[i], x, y);
+      }
+    };
+
+    var draw = function() {
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0,0,width,height);
+      for(var i in y_pos) {
+        x = f_s * i;
+        if(y_pos[i] > v_c + random_letters.length)
+          y_pos[i] = random_y() * -0.5;
+        y = f_s * y_pos[i]++;
+        draw_column(x, y, random_letters);
+      }
+      random_letters.shift();
+      random_letters.push(random_letter());
+      requestAnimationFrame(draw);
+    };
+
+    var start = function() {
+      setInterval(draw, 60);
+    };
+
+    WebFont.load({
+      custom: {
+        families: ['Matrix'],
+        urls: ['./font.css']
+      },
+      active: draw // Use requestAnimationFrame
+      // active: start // Use setInterval
+    });
+  </script>
+</body>
+</html>
